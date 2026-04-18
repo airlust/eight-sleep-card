@@ -14,6 +14,16 @@ export class EightSleepCardEditor extends LitElement implements LovelaceCardEdit
     this._config = config;
   }
 
+  private _dispatchConfig(newConfig: EightSleepCardConfig): void {
+    this.dispatchEvent(
+      new CustomEvent('config-changed', {
+        detail: { config: newConfig },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private _valueChanged(ev: Event): void {
     if (!this._config) return;
 
@@ -22,7 +32,7 @@ export class EightSleepCardEditor extends LitElement implements LovelaceCardEdit
 
     if (!configKey) return;
 
-    let value: string | boolean | string[];
+    let value: string | boolean;
 
     if (target.type === 'checkbox') {
       value = (target as HTMLInputElement).checked;
@@ -35,50 +45,34 @@ export class EightSleepCardEditor extends LitElement implements LovelaceCardEdit
       [configKey]: value,
     };
 
-    this.dispatchEvent(
-      new CustomEvent('config-changed', {
-        detail: { config: newConfig },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    this._dispatchConfig(newConfig);
   }
 
-  private _sidesChanged(ev: Event): void {
+  private _sideValueChanged(ev: Event): void {
     if (!this._config) return;
 
     const target = ev.target as HTMLInputElement;
     const side = target.dataset.side as 'left' | 'right';
-    const checked = target.checked;
+    const field = target.dataset.field as 'prefix' | 'label';
 
-    const currentSides = this._config.sides || ['left', 'right'];
-    let newSides: ('left' | 'right')[];
+    if (!side || !field) return;
 
-    if (checked && !currentSides.includes(side)) {
-      newSides = [...currentSides, side].sort();
-    } else if (!checked && currentSides.includes(side)) {
-      newSides = currentSides.filter(s => s !== side);
-    } else {
-      return;
-    }
-
-    // Ensure at least one side is selected
-    if (newSides.length === 0) {
-      return;
-    }
-
-    const newConfig = {
-      ...this._config,
-      sides: newSides,
+    const currentSideConfig = this._config[side] || { prefix: '', label: '' };
+    const newSideConfig = {
+      ...currentSideConfig,
+      [field]: target.value,
     };
 
-    this.dispatchEvent(
-      new CustomEvent('config-changed', {
-        detail: { config: newConfig },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    // If prefix is empty, remove the side config entirely
+    if (!newSideConfig.prefix) {
+      const { [side]: _, ...rest } = this._config;
+      this._dispatchConfig(rest as EightSleepCardConfig);
+    } else {
+      this._dispatchConfig({
+        ...this._config,
+        [side]: newSideConfig,
+      });
+    }
   }
 
   render() {
@@ -86,47 +80,67 @@ export class EightSleepCardEditor extends LitElement implements LovelaceCardEdit
       return html`<div>No configuration</div>`;
     }
 
-    const sides = this._config.sides || ['left', 'right'];
-
     return html`
       <div class="editor-container">
         <div class="editor-row">
-          <label class="editor-label">Entity Prefix</label>
+          <label class="editor-label">Left Side</label>
           <input
             type="text"
             class="editor-input"
-            .value=${this._config.entity_prefix || ''}
-            data-config-key="entity_prefix"
-            @input=${this._valueChanged}
-            placeholder="eight_sleep"
+            .value=${this._config.left?.prefix || ''}
+            data-side="left"
+            data-field="prefix"
+            @input=${this._sideValueChanged}
+            placeholder="Entity prefix (e.g., ben_eight_sleep)"
+            style="margin-bottom: 4px;"
           />
-          <small style="color: var(--secondary-text-color); display: block; margin-top: 4px;">
-            The prefix used for your Eight Sleep entities (e.g., "eight_sleep")
-          </small>
+          <input
+            type="text"
+            class="editor-input"
+            .value=${this._config.left?.label || ''}
+            data-side="left"
+            data-field="label"
+            @input=${this._sideValueChanged}
+            placeholder="Display label (e.g., Ben)"
+          />
         </div>
 
         <div class="editor-row">
-          <label class="editor-label">Sides to Display</label>
-          <div class="editor-checkbox-row">
-            <input
-              type="checkbox"
-              id="side-left"
-              .checked=${sides.includes('left')}
-              data-side="left"
-              @change=${this._sidesChanged}
-            />
-            <label for="side-left">Left</label>
-          </div>
-          <div class="editor-checkbox-row">
-            <input
-              type="checkbox"
-              id="side-right"
-              .checked=${sides.includes('right')}
-              data-side="right"
-              @change=${this._sidesChanged}
-            />
-            <label for="side-right">Right</label>
-          </div>
+          <label class="editor-label">Right Side</label>
+          <input
+            type="text"
+            class="editor-input"
+            .value=${this._config.right?.prefix || ''}
+            data-side="right"
+            data-field="prefix"
+            @input=${this._sideValueChanged}
+            placeholder="Entity prefix (e.g., partner_eight_sleep)"
+            style="margin-bottom: 4px;"
+          />
+          <input
+            type="text"
+            class="editor-input"
+            .value=${this._config.right?.label || ''}
+            data-side="right"
+            data-field="label"
+            @input=${this._sideValueChanged}
+            placeholder="Display label (e.g., Partner)"
+          />
+        </div>
+
+        <div class="editor-row">
+          <label class="editor-label">Hub Prefix (for room data)</label>
+          <input
+            type="text"
+            class="editor-input"
+            .value=${this._config.hub_prefix || ''}
+            data-config-key="hub_prefix"
+            @input=${this._valueChanged}
+            placeholder="eight_sleep_pod"
+          />
+          <small style="color: var(--secondary-text-color); display: block; margin-top: 4px;">
+            Used for room temperature and water level entities
+          </small>
         </div>
 
         <div class="editor-row">

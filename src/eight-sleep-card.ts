@@ -36,8 +36,9 @@ export class EightSleepCard extends LitElement implements LovelaceCard {
   static getStubConfig() {
     return {
       type: 'custom:eight-sleep-card',
-      entity_prefix: 'eight_sleep',
-      sides: ['left', 'right'],
+      left: { prefix: 'eight_sleep_left', label: 'Left Side' },
+      right: { prefix: 'eight_sleep_right', label: 'Right Side' },
+      hub_prefix: 'eight_sleep',
       show_sleep_stats: true,
       show_alarms: true,
       show_room_info: true,
@@ -45,12 +46,15 @@ export class EightSleepCard extends LitElement implements LovelaceCard {
   }
 
   setConfig(config: EightSleepCardConfig): void {
-    if (!config.entity_prefix) {
-      throw new Error('Please define entity_prefix');
+    // Require either new style (left/right) or legacy style (entity_prefix)
+    const hasNewConfig = config.left || config.right;
+    const hasLegacyConfig = config.entity_prefix;
+
+    if (!hasNewConfig && !hasLegacyConfig) {
+      throw new Error('Please define left/right prefixes or entity_prefix');
     }
 
     this._config = {
-      sides: ['left', 'right'],
       show_sleep_stats: true,
       show_alarms: true,
       show_room_info: true,
@@ -85,11 +89,49 @@ export class EightSleepCard extends LitElement implements LovelaceCard {
   private _updateData(): void {
     if (!this.hass || !this._config) return;
 
-    const prefix = this._config.entity_prefix;
-    const sides = this._config.sides || ['left', 'right'];
+    const sidesData: SideData[] = [];
 
-    this._sidesData = sides.map(side => extractSideData(this.hass, prefix, side));
-    this._roomData = extractRoomData(this.hass, prefix);
+    // New config style: individual prefixes per side
+    if (this._config.left) {
+      sidesData.push(extractSideData(
+        this.hass,
+        this._config.left.prefix,
+        'left',
+        this._config.left.label
+      ));
+    }
+    if (this._config.right) {
+      sidesData.push(extractSideData(
+        this.hass,
+        this._config.right.prefix,
+        'right',
+        this._config.right.label
+      ));
+    }
+
+    // Legacy config style: shared prefix with _left/_right suffix
+    if (sidesData.length === 0 && this._config.entity_prefix) {
+      sidesData.push(extractSideData(
+        this.hass,
+        `${this._config.entity_prefix}_left`,
+        'left'
+      ));
+      sidesData.push(extractSideData(
+        this.hass,
+        `${this._config.entity_prefix}_right`,
+        'right'
+      ));
+    }
+
+    this._sidesData = sidesData;
+
+    // Room data: use hub_prefix, or fall back to entity_prefix, or first side's prefix
+    const hubPrefix = this._config.hub_prefix ||
+                      this._config.entity_prefix ||
+                      this._config.left?.prefix ||
+                      this._config.right?.prefix ||
+                      '';
+    this._roomData = extractRoomData(this.hass, hubPrefix);
   }
 
   private _getOverallStatus(): { text: string; icon: string; class: string } {

@@ -101,15 +101,21 @@ export function getEntityAttribute<T>(
 
 /**
  * Extract side data from Home Assistant entities
+ * @param hass - Home Assistant instance
+ * @param prefix - Entity prefix (e.g., "ben_eight_sleep" for sensor.ben_eight_sleep_bed_temperature)
+ * @param side - Which side this represents (for internal tracking)
+ * @param label - Display label (e.g., "Ben" or "Left Side")
  */
 export function extractSideData(
   hass: HomeAssistant | undefined,
   prefix: string,
-  side: 'left' | 'right'
+  side: 'left' | 'right',
+  label?: string
 ): SideData {
-  const sensorPrefix = `sensor.${prefix}_${side}`;
-  const binaryPrefix = `binary_sensor.${prefix}_${side}`;
-  const climateEntity = `climate.${prefix}_${side}`;
+  // The prefix is the full entity prefix - entities are like sensor.{prefix}_bed_temperature
+  const sensorPrefix = `sensor.${prefix}`;
+  const binaryPrefix = `binary_sensor.${prefix}`;
+  const climateEntity = `climate.${prefix}`;
 
   const hvacActionRaw = getEntityAttribute<string>(hass, climateEntity, 'hvac_action');
   let hvacAction: SideData['hvacAction'] = null;
@@ -120,6 +126,7 @@ export function extractSideData(
 
   return {
     side,
+    label: label || capitalize(side) + ' Side',
     bedTemperature: parseEntityState(getEntityState(hass, `${sensorPrefix}_bed_temperature`) ?? undefined),
     targetTemperature: parseEntityState(getEntityState(hass, `${sensorPrefix}_target_heating_temp`) ?? undefined),
     heatingLevel: parseEntityState(getEntityState(hass, `${sensorPrefix}_bed_state`) ?? undefined),

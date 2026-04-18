@@ -4,7 +4,6 @@ import { SideData } from '../types';
 import {
   formatTimeSlept,
   getSleepScoreColor,
-  capitalize,
 } from '../utils';
 
 @customElement('eight-sleep-stats')
@@ -86,7 +85,7 @@ export class SleepStatsComponent extends LitElement {
     if (!hasAnyData) {
       return html`
         <div class="sleep-side">
-          <div class="sleep-side-title">${capitalize(data.side)} Side</div>
+          <div class="sleep-side-title">${data.label}</div>
           <div class="no-data">No sleep data</div>
         </div>
       `;
@@ -94,7 +93,7 @@ export class SleepStatsComponent extends LitElement {
 
     return html`
       <div class="sleep-side">
-        <div class="sleep-side-title">${capitalize(data.side)} Side</div>
+        <div class="sleep-side-title">${data.label}</div>
         ${data.sleepScore !== null ? html`
           <div class="sleep-score" style="color: ${getSleepScoreColor(data.sleepScore)}">
             Score: ${Math.round(data.sleepScore)}%

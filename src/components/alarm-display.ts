@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { SideData } from '../types';
-import { formatAlarmTime, capitalize } from '../utils';
+import { formatAlarmTime } from '../utils';
 
 @customElement('eight-sleep-alarms')
 export class AlarmDisplayComponent extends LitElement {
@@ -62,7 +62,7 @@ export class AlarmDisplayComponent extends LitElement {
         ${alarmsWithData.map((side, index) => html`
           ${index > 0 ? html`<span class="alarm-divider">│</span>` : nothing}
           <span class="alarm-item">
-            <span>${capitalize(side.side)}</span>
+            <span>${side.label}</span>
             <span>${formatAlarmTime(side.nextAlarm)}</span>
           </span>
         `)}

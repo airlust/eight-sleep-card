@@ -933,10 +933,10 @@ function getEntityAttribute(hass, entityId, attribute) {
   if (!(hass == null ? void 0 : hass.states[entityId])) return null;
   return hass.states[entityId].attributes[attribute] ?? null;
 }
-function extractSideData(hass, prefix, side) {
-  const sensorPrefix = `sensor.${prefix}_${side}`;
-  const binaryPrefix = `binary_sensor.${prefix}_${side}`;
-  const climateEntity = `climate.${prefix}_${side}`;
+function extractSideData(hass, prefix, side, label) {
+  const sensorPrefix = `sensor.${prefix}`;
+  const binaryPrefix = `binary_sensor.${prefix}`;
+  const climateEntity = `climate.${prefix}`;
   const hvacActionRaw = getEntityAttribute(hass, climateEntity, "hvac_action");
   let hvacAction = null;
   if (hvacActionRaw === "heating" || hvacActionRaw === "cooling" || hvacActionRaw === "idle" || hvacActionRaw === "off") {
@@ -944,6 +944,7 @@ function extractSideData(hass, prefix, side) {
   }
   return {
     side,
+    label: label || capitalize(side) + " Side",
     bedTemperature: parseEntityState(getEntityState(hass, `${sensorPrefix}_bed_temperature`) ?? void 0),
     targetTemperature: parseEntityState(getEntityState(hass, `${sensorPrefix}_target_heating_temp`) ?? void 0),
     heatingLevel: parseEntityState(getEntityState(hass, `${sensorPrefix}_bed_state`) ?? void 0),
@@ -1016,7 +1017,7 @@ let BedSideComponent = class extends i {
         class="bed-side ${this.data.presence ? "has-presence" : ""}"
         style="background: ${bgColor}"
       >
-        <div class="bed-side-label">${capitalize(this.data.side)} Side</div>
+        <div class="bed-side-label">${this.data.label}</div>
         <div class="temperature-display">
           ${formatTemperature(this.data.bedTemperature, this.temperatureUnit)}
         </div>
@@ -1134,14 +1135,14 @@ let SleepStatsComponent = class extends i {
     if (!hasAnyData) {
       return b`
         <div class="sleep-side">
-          <div class="sleep-side-title">${capitalize(data.side)} Side</div>
+          <div class="sleep-side-title">${data.label}</div>
           <div class="no-data">No sleep data</div>
         </div>
       `;
     }
     return b`
       <div class="sleep-side">
-        <div class="sleep-side-title">${capitalize(data.side)} Side</div>
+        <div class="sleep-side-title">${data.label}</div>
         ${data.sleepScore !== null ? b`
           <div class="sleep-score" style="color: ${getSleepScoreColor(data.sleepScore)}">
             Score: ${Math.round(data.sleepScore)}%
@@ -1295,7 +1296,7 @@ let AlarmDisplayComponent = class extends i {
         ${alarmsWithData.map((side, index) => b`
           ${index > 0 ? b`<span class="alarm-divider">│</span>` : A}
           <span class="alarm-item">
-            <span>${capitalize(side.side)}</span>
+            <span>${side.label}</span>
             <span>${formatAlarmTime(side.nextAlarm)}</span>
           </span>
         `)}
@@ -1358,6 +1359,15 @@ let EightSleepCardEditor = class extends i {
   setConfig(config) {
     this._config = config;
   }
+  _dispatchConfig(newConfig) {
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config: newConfig },
+        bubbles: true,
+        composed: true
+      })
+    );
+  }
   _valueChanged(ev) {
     if (!this._config) return;
     const target = ev.target;
@@ -1373,87 +1383,95 @@ let EightSleepCardEditor = class extends i {
       ...this._config,
       [configKey]: value
     };
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        detail: { config: newConfig },
-        bubbles: true,
-        composed: true
-      })
-    );
+    this._dispatchConfig(newConfig);
   }
-  _sidesChanged(ev) {
+  _sideValueChanged(ev) {
     if (!this._config) return;
     const target = ev.target;
     const side = target.dataset.side;
-    const checked = target.checked;
-    const currentSides = this._config.sides || ["left", "right"];
-    let newSides;
-    if (checked && !currentSides.includes(side)) {
-      newSides = [...currentSides, side].sort();
-    } else if (!checked && currentSides.includes(side)) {
-      newSides = currentSides.filter((s2) => s2 !== side);
-    } else {
-      return;
-    }
-    if (newSides.length === 0) {
-      return;
-    }
-    const newConfig = {
-      ...this._config,
-      sides: newSides
+    const field = target.dataset.field;
+    if (!side || !field) return;
+    const currentSideConfig = this._config[side] || { prefix: "", label: "" };
+    const newSideConfig = {
+      ...currentSideConfig,
+      [field]: target.value
     };
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        detail: { config: newConfig },
-        bubbles: true,
-        composed: true
-      })
-    );
+    if (!newSideConfig.prefix) {
+      const { [side]: _2, ...rest } = this._config;
+      this._dispatchConfig(rest);
+    } else {
+      this._dispatchConfig({
+        ...this._config,
+        [side]: newSideConfig
+      });
+    }
   }
   render() {
+    var _a2, _b, _c, _d;
     if (!this._config) {
       return b`<div>No configuration</div>`;
     }
-    const sides = this._config.sides || ["left", "right"];
     return b`
       <div class="editor-container">
         <div class="editor-row">
-          <label class="editor-label">Entity Prefix</label>
+          <label class="editor-label">Left Side</label>
           <input
             type="text"
             class="editor-input"
-            .value=${this._config.entity_prefix || ""}
-            data-config-key="entity_prefix"
-            @input=${this._valueChanged}
-            placeholder="eight_sleep"
+            .value=${((_a2 = this._config.left) == null ? void 0 : _a2.prefix) || ""}
+            data-side="left"
+            data-field="prefix"
+            @input=${this._sideValueChanged}
+            placeholder="Entity prefix (e.g., ben_eight_sleep)"
+            style="margin-bottom: 4px;"
           />
-          <small style="color: var(--secondary-text-color); display: block; margin-top: 4px;">
-            The prefix used for your Eight Sleep entities (e.g., "eight_sleep")
-          </small>
+          <input
+            type="text"
+            class="editor-input"
+            .value=${((_b = this._config.left) == null ? void 0 : _b.label) || ""}
+            data-side="left"
+            data-field="label"
+            @input=${this._sideValueChanged}
+            placeholder="Display label (e.g., Ben)"
+          />
         </div>
 
         <div class="editor-row">
-          <label class="editor-label">Sides to Display</label>
-          <div class="editor-checkbox-row">
-            <input
-              type="checkbox"
-              id="side-left"
-              .checked=${sides.includes("left")}
-              data-side="left"
-              @change=${this._sidesChanged}
-            />
-            <label for="side-left">Left</label>
-          </div>
-          <div class="editor-checkbox-row">
-            <input
-              type="checkbox"
-              id="side-right"
-              .checked=${sides.includes("right")}
-              data-side="right"
-              @change=${this._sidesChanged}
-            />
-            <label for="side-right">Right</label>
-          </div>
+          <label class="editor-label">Right Side</label>
+          <input
+            type="text"
+            class="editor-input"
+            .value=${((_c = this._config.right) == null ? void 0 : _c.prefix) || ""}
+            data-side="right"
+            data-field="prefix"
+            @input=${this._sideValueChanged}
+            placeholder="Entity prefix (e.g., partner_eight_sleep)"
+            style="margin-bottom: 4px;"
+          />
+          <input
+            type="text"
+            class="editor-input"
+            .value=${((_d = this._config.right) == null ? void 0 : _d.label) || ""}
+            data-side="right"
+            data-field="label"
+            @input=${this._sideValueChanged}
+            placeholder="Display label (e.g., Partner)"
+          />
+        </div>
+
+        <div class="editor-row">
+          <label class="editor-label">Hub Prefix (for room data)</label>
+          <input
+            type="text"
+            class="editor-input"
+            .value=${this._config.hub_prefix || ""}
+            data-config-key="hub_prefix"
+            @input=${this._valueChanged}
+            placeholder="eight_sleep_pod"
+          />
+          <small style="color: var(--secondary-text-color); display: block; margin-top: 4px;">
+            Used for room temperature and water level entities
+          </small>
         </div>
 
         <div class="editor-row">
@@ -1549,19 +1567,21 @@ let EightSleepCard = class extends i {
   static getStubConfig() {
     return {
       type: "custom:eight-sleep-card",
-      entity_prefix: "eight_sleep",
-      sides: ["left", "right"],
+      left: { prefix: "eight_sleep_left", label: "Left Side" },
+      right: { prefix: "eight_sleep_right", label: "Right Side" },
+      hub_prefix: "eight_sleep",
       show_sleep_stats: true,
       show_alarms: true,
       show_room_info: true
     };
   }
   setConfig(config) {
-    if (!config.entity_prefix) {
-      throw new Error("Please define entity_prefix");
+    const hasNewConfig = config.left || config.right;
+    const hasLegacyConfig = config.entity_prefix;
+    if (!hasNewConfig && !hasLegacyConfig) {
+      throw new Error("Please define left/right prefixes or entity_prefix");
     }
     this._config = {
-      sides: ["left", "right"],
       show_sleep_stats: true,
       show_alarms: true,
       show_room_info: true,
@@ -1590,11 +1610,40 @@ let EightSleepCard = class extends i {
     }
   }
   _updateData() {
+    var _a2, _b;
     if (!this.hass || !this._config) return;
-    const prefix = this._config.entity_prefix;
-    const sides = this._config.sides || ["left", "right"];
-    this._sidesData = sides.map((side) => extractSideData(this.hass, prefix, side));
-    this._roomData = extractRoomData(this.hass, prefix);
+    const sidesData = [];
+    if (this._config.left) {
+      sidesData.push(extractSideData(
+        this.hass,
+        this._config.left.prefix,
+        "left",
+        this._config.left.label
+      ));
+    }
+    if (this._config.right) {
+      sidesData.push(extractSideData(
+        this.hass,
+        this._config.right.prefix,
+        "right",
+        this._config.right.label
+      ));
+    }
+    if (sidesData.length === 0 && this._config.entity_prefix) {
+      sidesData.push(extractSideData(
+        this.hass,
+        `${this._config.entity_prefix}_left`,
+        "left"
+      ));
+      sidesData.push(extractSideData(
+        this.hass,
+        `${this._config.entity_prefix}_right`,
+        "right"
+      ));
+    }
+    this._sidesData = sidesData;
+    const hubPrefix = this._config.hub_prefix || this._config.entity_prefix || ((_a2 = this._config.left) == null ? void 0 : _a2.prefix) || ((_b = this._config.right) == null ? void 0 : _b.prefix) || "";
+    this._roomData = extractRoomData(this.hass, hubPrefix);
   }
   _getOverallStatus() {
     const heatingCount = this._sidesData.filter((s2) => s2.hvacAction === "heating").length;

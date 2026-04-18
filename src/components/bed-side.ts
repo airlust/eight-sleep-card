@@ -4,7 +4,6 @@ import { SideData } from '../types';
 import {
   formatTemperature,
   getTemperatureGradient,
-  capitalize,
 } from '../utils';
 
 @customElement('eight-sleep-bed-side')
@@ -106,7 +105,7 @@ export class BedSideComponent extends LitElement {
         class="bed-side ${this.data.presence ? 'has-presence' : ''}"
         style="background: ${bgColor}"
       >
-        <div class="bed-side-label">${capitalize(this.data.side)} Side</div>
+        <div class="bed-side-label">${this.data.label}</div>
         <div class="temperature-display">
           ${formatTemperature(this.data.bedTemperature, this.temperatureUnit)}
         </div>

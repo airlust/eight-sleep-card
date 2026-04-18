@@ -1,9 +1,18 @@
 import { LitElement } from 'lit';
 
+export interface SideConfig {
+  prefix: string;
+  label?: string;  // Optional custom label (defaults to "Left Side" / "Right Side")
+}
+
 export interface EightSleepCardConfig {
   type: string;
-  entity_prefix: string;
-  sides?: ('left' | 'right')[];
+  // New: individual prefixes per side
+  left?: SideConfig;
+  right?: SideConfig;
+  hub_prefix?: string;  // For room-level entities
+  // Legacy: single prefix for all (still supported)
+  entity_prefix?: string;
   show_sleep_stats?: boolean;
   show_alarms?: boolean;
   show_room_info?: boolean;
@@ -13,6 +22,7 @@ export interface EightSleepCardConfig {
 
 export interface SideData {
   side: 'left' | 'right';
+  label: string;
   bedTemperature: number | null;
   targetTemperature: number | null;
   heatingLevel: number | null;
